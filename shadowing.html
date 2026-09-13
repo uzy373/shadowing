@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Shadowing</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#353A47; --ink-2:#6B707C; --ink-3:#A5A9B3;
+    --paper:#FFFFFF; --paper-2:#F4F3F4; --line:#E1E2E6;
+    --blue:#0C27F4; --orange:#ED6A2C; --teal:#27A6D2;
+    --miss:#D9451B; --miss-bg:#FDE9E1;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,"Hiragino Sans","Yu Gothic",sans-serif;font-size:15px;line-height:1.5}
+  body{padding:env(safe-area-inset-top) 0 calc(24px + env(safe-area-inset-bottom))}
+  main{max-width:640px;margin:0 auto;padding:0 16px}
+  h1{font-size:15px;font-weight:600;margin:14px 0 0;color:var(--ink-2)}
+  h2{font-size:13px;font-weight:600;color:var(--ink-2);margin:0 0 8px}
+  section{padding:18px 0;border-bottom:1px solid var(--line)}
+  section:last-of-type{border-bottom:0}
+  select,input,textarea{font:inherit;color:var(--ink);background:var(--paper);
+    border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%}
+  textarea{min-height:88px;resize:vertical}
+  button{font:inherit;border:1px solid var(--line);background:var(--paper);color:var(--ink);
+    border-radius:8px;padding:10px 12px;cursor:pointer}
+  button:disabled{opacity:.4}
+  button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  button.rec{background:var(--orange);border-color:var(--orange);color:#fff}
+  button.rec.on{background:var(--miss);border-color:var(--miss)}
+  button.ghost{border-color:transparent;color:var(--blue);padding:6px 4px}
+  button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+  .row{display:flex;gap:8px;align-items:center}
+  .row>*{flex:1}
+  .row.tight>*{flex:0 0 auto}
+  .muted{color:var(--ink-2);font-size:13px}
+  .small{font-size:12px;color:var(--ink-3)}
+
+  /* current sentence — the one thing that should be big */
+  .now{font-size:22px;line-height:1.4;font-weight:500;letter-spacing:-.01em;margin:8px 0 14px;min-height:62px}
+  .now .miss{color:var(--miss);background:var(--miss-bg);border-radius:3px;padding:0 2px}
+  .now .hit{color:var(--ink)}
+
+  .transport{display:grid;grid-template-columns:1fr 2fr 1fr 1.2fr;gap:6px}
+  .transport button{padding:12px 0;font-size:15px}
+  .transport .play{font-size:17px}
+  .rate{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .rate input[type=range]{flex:1;padding:0;border:0}
+  .rate output{width:44px;text-align:right;font-variant-numeric:tabular-nums}
+  .toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .toggle button{border:0;border-radius:0;padding:8px 12px;font-size:13px}
+  .toggle button.on{background:var(--ink);color:#fff}
+  #btnLoop.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  .passage{margin:6px 0 0;padding:0;list-style:none}
+  .passage li{padding:6px 8px;border-radius:6px;color:var(--ink-2);font-size:14px}
+  .passage li.cur{background:var(--paper-2);color:var(--ink)}
+  .passage li .badge{float:right;font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink-3)}
+  .passage li .badge.good{color:var(--teal)} .passage li .badge.bad{color:var(--miss)}
+
+  .score{display:flex;align-items:baseline;gap:8px;margin:6px 0 4px}
+  .score b{font-size:32px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .heard{font-size:14px;color:var(--ink-2);background:var(--paper-2);border-radius:6px;padding:8px 10px;margin-top:8px;min-height:38px}
+  .missed{margin-top:8px;font-size:14px}
+  .missed span{display:inline-block;background:var(--miss-bg);color:var(--miss);border-radius:4px;padding:1px 6px;margin:2px 4px 2px 0}
+
+  .analysis{margin-top:10px}
+  .analysis .wp{padding:8px 0;border-top:1px solid var(--line)}
+  .analysis .wp b{display:block}
+  .analysis .wp .tip{color:var(--ink-2);font-size:13px}
+  .analysis ol{padding-left:20px;margin:6px 0}
+  .analysis li{margin:4px 0}
+  .status{font-size:13px;color:var(--ink-2);min-height:18px;margin-top:6px}
+  .status.err{color:var(--miss)}
+
+  details summary{cursor:pointer;color:var(--ink-2);font-size:13px;list-style:none;padding:4px 0}
+  details summary::-webkit-details-marker{display:none}
+  details[open] summary{margin-bottom:8px}
+  .field{margin-bottom:10px}
+  .field label{display:block;font-size:12px;color:var(--ink-2);margin-bottom:3px}
+  canvas{max-height:180px}
+  .topmiss{font-size:13px;color:var(--ink-2);margin-top:8px}
+  .topmiss span{display:inline-block;margin:2px 8px 2px 0;font-variant-numeric:tabular-nums}
+  @media (prefers-reduced-motion:no-preference){ button{transition:background .12s} }
+</style>
+</head>
+<body>
+<main>
+  <h1>Shadowing</h1>
+
+  <!-- 1. passage select + current sentence + transport -->
+  <section>
+    <div class="row">
+      <select id="passageSel" aria-label="パッセージ"></select>
+      <button id="btnNewPassage" style="flex:0 0 auto">追加</button>
+    </div>
+    <div class="now" id="now">—</div>
+    <div class="transport">
+      <button id="btnPrev" title="前の文">‹</button>
+      <button id="btnPlay" class="play primary">全文再生</button>
+      <button id="btnNext" title="次の文">›</button>
+      <button id="btnLoop" title="この文を繰り返す">↻ 1文</button>
+    </div>
+    <p class="small" style="margin:6px 0 0">再生は今の文から最後まで通します。‹ › で文を移動、↻ で今の文だけ繰り返し。</p>
+    <div class="rate">
+      <span class="small">速度</span>
+      <input type="range" id="rate" min="0.6" max="1.3" step="0.05" value="0.9">
+      <output id="rateOut">0.90×</output>
+    </div>
+    <ul class="passage" id="passageList"></ul>
+  </section>
+
+  <!-- 2. record + score -->
+  <section>
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">吹き込む</h2>
+      <div class="toggle" style="flex:0 0 auto">
+        <button id="modeSent">1文</button>
+        <button id="modeAll" class="on">通し</button>
+      </div>
+    </div>
+    <p class="muted" style="margin:6px 0 10px">イヤホン装着のうえ、お手本を止めてから●。通しは全文、1文は今の文が採点対象。</p>
+    <div class="row">
+      <button id="btnRec" class="rec">● 吹き込み開始</button>
+    </div>
+    <div class="status" id="recStatus"></div>
+    <div class="score"><b id="scoreVal">–</b><span class="muted" id="scoreMeta"></span></div>
+    <div class="heard" id="heard">認識結果がここに出ます</div>
+    <div class="missed" id="missed"></div>
+    <details style="margin-top:10px">
+      <summary>音声認識が動かないとき（キーボードの音声入力で吹き込んだ文を貼る）</summary>
+      <textarea id="manualText" placeholder="iOSのキーボード音声入力（英語）で吹き込んだ結果を貼り付け"></textarea>
+      <div class="row" style="margin-top:6px"><button id="btnManual">この文で採点</button></div>
+    </details>
+  </section>
+
+  <!-- 3. analysis -->
+  <section>
+    <h2>弱点を分析して次の例文を作る</h2>
+    <div class="row">
+      <button id="btnAnalyze" class="primary">分析する</button>
+      <label class="muted" style="flex:0 0 auto;display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="wantPassage" style="width:auto"> 2分パッセージも
+      </label>
+    </div>
+    <div class="status" id="anStatus"></div>
+    <div class="analysis" id="analysis"></div>
+  </section>
+
+  <!-- 4. history -->
+  <section>
+    <h2>一致率の推移</h2>
+    <canvas id="chart"></canvas>
+    <div class="topmiss" id="topMiss"></div>
+  </section>
+
+  <!-- 5. settings -->
+  <section>
+    <details id="settings">
+      <summary>設定（APIキー・音声・データ）</summary>
+      <div class="field"><label>Anthropic API key（この端末のみに保存）</label><input id="apiKey" type="password" autocomplete="off"></div>
+      <div class="field"><label>モデル</label><input id="model" value="claude-sonnet-5"></div>
+      <div class="field"><label>お手本の声（英語）</label><select id="voiceSel"></select></div>
+      <div class="row"><button id="btnExport">データを書き出す</button><button id="btnReset">履歴を消す</button></div>
+      <p class="small" style="margin-top:10px">Safariで音声認識の許可を求められたら「許可」。反応しない場合は上の手動貼り付けで採点できます。</p>
+    </details>
+  </section>
+</main>
+
+<script>
+/* ---------- state ---------- */
+const KEY='shadow_app_v1';
+const PRESET=[
+ {id:'p1',title:'A trial that nearly didn\'t happen',text:`Let me tell you about a trial that nearly didn't happen. Three years ago, we were developing an oral formulation for a rare liver disease. The early data looked promising: bioavailability was roughly forty percent, variability was low, and the safety profile was clean. But the program was almost cancelled anyway. Not because the science was wrong, but because nobody believed we could enroll the patients. The disease is rare. Really rare. Individual hospitals rarely see more than five or six cases a year. So our first feasibility review concluded that a Phase 3 trial would take at least seven years. That isn't a trial. That's a career. What we learned is that the problem wasn't the drug. It was the infrastructure. So we did something we hadn't tried before. We built a collaboration with twelve referral centers across Europe, Brazil, and later Korea, and we let the sites share a single central review board. We also waited for the regulators to review the protocol before we finalized the vendor contracts, which felt slow at the time but saved us from three amendments later. The result? Enrollment finished in fourteen months, not seven years. The primary endpoint was met. The relative risk reduction was about fifty-five percent, and liver enzyme levels returned to normal in most patients. Now, I'm not telling you this because everything went well. It didn't. Our first vendor delivered the wrong labels, and we lost almost a full quarter. The interim analysis wasn't clean either. Several investigators hadn't reported their adverse events on time, and we had to verify every single record by hand. But here's the point. The breakthrough wasn't the molecule. The molecule had existed for years. The breakthrough was the collaboration: people who were willing to work differently, and to learn faster than the rules allowed. So when someone tells you a trial isn't feasible, ask them a different question. Not "is it feasible?" but "what would have to change?" Because in my experience, the barrier is rarely the technology. It's very often the way we work.`},
+ {id:'p2',title:'4 sentences — l/r, v/b, negatives',text:`The malaria vaccine lowered the viral load in the collaboration trial. Several researchers proved the first formulation was safe and effective. We waited for the interim results before the review meeting. The protocol isn't final, and the site hasn't enrolled any patients yet.`}
+];
+let S=load();
+function load(){
+  try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.passages)return s;}catch(e){}
+  return {passages:PRESET.map(p=>({...p})),cur:'p1',idx:0,attempts:[],apiKey:'',model:'claude-sonnet-5',rate:0.9,voice:'',mode:'all'};
+}
+function save(){localStorage.setItem(KEY,JSON.stringify(S));}
+const $=id=>document.getElementById(id);
+
+/* ---------- sentences ---------- */
+function splitSentences(t){
+  return t.replace(/\s+/g,' ').trim().split(/(?<=[.!?]["']?)\s+(?=[A-Z"'(])/).filter(Boolean);
+}
+function passage(){return S.passages.find(p=>p.id===S.cur)||S.passages[0];}
+function sentences(){return splitSentences(passage().text);}
+
+/* ---------- normalization + scoring ---------- */
+const ONES=['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+const TENS=['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+function numWords(n){n=+n;if(isNaN(n)||n>999)return String(n);
+  if(n<20)return ONES[n];if(n<100)return TENS[Math.floor(n/10)]+(n%10?' '+ONES[n%10]:'');
+  return ONES[Math.floor(n/100)]+' hundred'+(n%100?' '+numWords(n%100):'');}
+function tokens(t){
+  return t.toLowerCase().replace(/[’‘]/g,"'").replace(/%/g,' percent ')
+    .replace(/(\d+)/g,(m)=>' '+numWords(m)+' ')
+    .replace(/[^a-z' ]+/g,' ').replace(/'+(?=\s|$)|(^|\s)'+/g,' ')
+    .split(/\s+/).filter(Boolean);
+}
+// LCS alignment → which original tokens were matched
+function align(orig,heard){
+  const n=orig.length,m=heard.length;const dp=Array.from({length:n+1},()=>new Array(m+1).fill(0));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)dp[i][j]=orig[i]===heard[j]?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+  const hit=new Array(n).fill(false);let i=0,j=0;
+  while(i<n&&j<m){if(orig[i]===heard[j]){hit[i]=true;i++;j++;}else if(dp[i+1][j]>=dp[i][j+1])i++;else j++;}
+  return hit;
+}
+function score(origText,heardText){
+  const o=tokens(origText),h=tokens(heardText);const hit=align(o,h);
+  const matched=hit.filter(Boolean).length;
+  return {pct:o.length?Math.round(100*matched/o.length):0,orig:o,hit,missed:o.filter((w,k)=>!hit[k])};
+}
+
+/* ---------- TTS ---------- */
+let voices=[],speaking=false,continuous=false,loop=false,utter=null;
+function loadVoices(){
+  voices=speechSynthesis.getVoices().filter(v=>/^en[-_]/i.test(v.lang));
+  const sel=$('voiceSel');sel.innerHTML='';
+  const pref=/samantha|ava|evan|alex|zoe|aaron|nicky|premium|enhanced/i;
+  voices.sort((a,b)=>(pref.test(b.name)-pref.test(a.name))||a.name.localeCompare(b.name));
+  voices.forEach(v=>{const o=document.createElement('option');o.value=v.name;o.textContent=`${v.name} (${v.lang})`;sel.appendChild(o);});
+  if(S.voice&&voices.some(v=>v.name===S.voice))sel.value=S.voice;else if(voices[0]){S.voice=voices[0].name;}
+}
+speechSynthesis.onvoiceschanged=loadVoices;loadVoices();
+function speak(i){
+  const ss=sentences();if(i<0||i>=ss.length){stop();return;}
+  S.idx=i;save();render();
+  speechSynthesis.cancel();
+  utter=new SpeechSynthesisUtterance(ss[i]);
+  const v=voices.find(v=>v.name===S.voice);if(v)utter.voice=v;utter.lang='en-US';utter.rate=S.rate;
+  utter.onend=()=>{if(!speaking)return;if(loop)speak(i);else if(continuous)speak(i+1);else stop();};
+  utter.onerror=()=>stop();
+  speaking=true;$('btnPlay').textContent='停止';$('btnLoop').classList.toggle('on',loop);
+  speechSynthesis.speak(utter);
+}
+function stop(){speaking=false;speechSynthesis.cancel();$('btnPlay').textContent=loop?'この文を再生':'全文再生';}
+
+/* ---------- recognition ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null,recOn=false,finalText='',lastResult=null;
+function startRec(){
+  if(!SR){setRec('この端末では音声認識が使えません。下の手動貼り付けで採点してください。',true);return;}
+  stop();finalText='';lastResult=null;$('heard').textContent='…';
+  rec=new SR();rec.lang='en-US';rec.interimResults=true;rec.continuous=(S.mode==='all');rec.maxAlternatives=1;
+  rec.onresult=e=>{let interim='';for(let k=e.resultIndex;k<e.results.length;k++){const r=e.results[k];if(r.isFinal)finalText+=r[0].transcript+' ';else interim+=r[0].transcript;}
+    $('heard').textContent=(finalText+interim).trim()||'…';};
+  rec.onerror=e=>{setRec('音声認識エラー: '+e.error+(e.error==='not-allowed'?'（マイクを許可してください）':''),true);endRec(false);};
+  rec.onend=()=>{ if(recOn&&S.mode==='all'){try{rec.start();return;}catch(e){}} endRec(true);};
+  try{rec.start();recOn=true;$('btnRec').textContent='■ 停止して採点';$('btnRec').classList.add('on');setRec(S.mode==='sent'?'今の文を話してください。話し終わると自動で止まります。':'通しで話してください。終わったら■。');}
+  catch(e){setRec('開始できません: '+e.message,true);}
+}
+function endRec(doScore){
+  recOn=false;$('btnRec').textContent='● 吹き込み開始';$('btnRec').classList.remove('on');
+  if(doScore&&finalText.trim())scoreAndShow(finalText.trim());else if(doScore)setRec('何も認識されませんでした。もう一度どうぞ。',true);
+}
+function stopRec(){recOn=false;try{rec&&rec.stop();}catch(e){}}
+function setRec(msg,err){const s=$('recStatus');s.textContent=msg;s.className='status'+(err?' err':'');}
+
+function scoreAndShow(heardText){
+  const ss=sentences();const target=S.mode==='sent'?ss[S.idx]:passage().text;
+  const r=score(target,heardText);lastResult={target,heard:heardText,...r};
+  $('scoreVal').textContent=r.pct+'%';
+  $('scoreMeta').textContent=`${r.orig.length-r.missed.length}/${r.orig.length}語 ・ ${S.mode==='sent'?'1文':'通し'}`;
+  $('heard').textContent=heardText;
+  $('missed').innerHTML=r.missed.length?'落ちた語: '+[...new Set(r.missed)].map(w=>`<span>${esc(w)}</span>`).join(''):'全語一致';
+  // highlight current sentence
+  if(S.mode==='sent')$('now').innerHTML=r.orig.map((w,k)=>`<span class="${r.hit[k]?'hit':'miss'}">${esc(w)}</span>`).join(' ');
+  S.attempts.push({t:Date.now(),p:S.cur,i:S.mode==='sent'?S.idx:-1,pct:r.pct,missed:[...new Set(r.missed)],heard:heardText});
+  if(S.attempts.length>400)S.attempts=S.attempts.slice(-400);
+  save();setRec('採点しました');renderList();drawChart();
+}
+
+/* ---------- Claude analysis ---------- */
+async function analyze(){
+  if(!S.apiKey){setAn('設定にAPIキーを入れてください',true);$('settings').open=true;return;}
+  const recent=S.attempts.slice(-10);
+  if(!lastResult&&!recent.length){setAn('先に1回吹き込んでください',true);return;}
+  const missedHist=recent.flatMap(a=>a.missed);
+  const wantP=$('wantPassage').checked;
+  const prompt=`You are a pronunciation coach for a Japanese pharmaceutical R&D professional preparing for English web meetings. The learner shadowed an English passage; the phone's speech recognizer (en-US) transcribed what they said. Words the recognizer failed to match indicate pronunciation habits (typical Japanese-speaker issues: l/r, v/b, f/p, th, dropped final consonants, lost negative contractions like isn't→is, vowels such as ɜːr, w→v).
+
+Latest attempt:
+- Original: ${lastResult?lastResult.target:'(none)'}
+- Recognized: ${lastResult?lastResult.heard:'(none)'}
+- Missed words: ${lastResult?lastResult.missed.join(', '):'(none)'}
+
+Missed words from the last 10 attempts: ${missedHist.join(', ')||'(none)'}
+
+Return ONLY JSON, no markdown:
+{"weak_points":[{"sound":"short label in Japanese, e.g. l/rの混同","evidence":"3-5 example words from the data","tip":"one concrete articulation tip in Japanese, 1 sentence"}],  // max 3, ordered by priority
+ "sentences":["...","...","..."],  // 3 English sentences, 12-20 words each, pharma/clinical-development meeting context, each dense with the top weak sounds; include at least one negative contraction
+ ${wantP?'"passage":{"title":"short English title","text":"an original 280-330 word first-person passage in the style of a clinical development lead telling a story in a meeting; dense with the weak sounds and negative contractions"}':'"passage":null'}
+}`;
+  setAn('分析中…');$('btnAnalyze').disabled=true;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':S.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:S.model,max_tokens:1800,messages:[{role:'user',content:prompt}]})});
+    if(!res.ok){throw new Error(res.status+' '+(await res.text()).slice(0,200));}
+    const data=await res.json();const txt=data.content.filter(c=>c.type==='text').map(c=>c.text).join('');
+    const j=JSON.parse(txt.replace(/```json|```/g,'').trim());
+    showAnalysis(j);setAn('');
+  }catch(e){setAn('失敗: '+e.message,true);}
+  $('btnAnalyze').disabled=false;
+}
+function showAnalysis(j){
+  const el=$('analysis');
+  el.innerHTML=(j.weak_points||[]).map(w=>`<div class="wp"><b>${esc(w.sound)}</b><span class="muted">${esc(w.evidence)}</span><div class="tip">${esc(w.tip)}</div></div>`).join('')
+   +`<div class="wp"><b>対策例文</b><ol>${(j.sentences||[]).map(s=>`<li>${esc(s)}</li>`).join('')}</ol><button id="addSent">例文をパッセージに追加</button></div>`
+   +(j.passage?`<div class="wp"><b>${esc(j.passage.title)}</b><p class="muted" style="font-size:13px">${esc(j.passage.text)}</p><button id="addPass">パッセージに追加</button></div>`:'');
+  $('addSent').onclick=()=>{addPassage('対策例文 '+new Date().toLocaleDateString('ja-JP'),(j.sentences||[]).join(' '));};
+  if(j.passage)$('addPass').onclick=()=>addPassage(j.passage.title,j.passage.text);
+}
+function setAn(msg,err){const s=$('anStatus');s.textContent=msg;s.className='status'+(err?' err':'');}
+function addPassage(title,text){
+  const id='p'+Date.now();S.passages.push({id,title,text});S.cur=id;S.idx=0;save();render();window.scrollTo({top:0});
+}
+
+/* ---------- render ---------- */
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function render(){
+  const sel=$('passageSel');sel.innerHTML='';S.passages.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.title;sel.appendChild(o);});
+  sel.value=passage().id;
+  const ss=sentences();if(S.idx>=ss.length)S.idx=0;
+  $('now').textContent=ss[S.idx]||'—';
+  $('rate').value=S.rate;$('rateOut').textContent=S.rate.toFixed(2)+'×';
+  $('modeSent').classList.toggle('on',S.mode==='sent');$('modeAll').classList.toggle('on',S.mode==='all');
+  $('btnLoop').classList.toggle('on',loop);if(!speaking)$('btnPlay').textContent=loop?'この文を再生':'全文再生';
+  $('apiKey').value=S.apiKey;$('model').value=S.model;
+  renderList();
+}
+function renderList(){
+  const ss=sentences();const ul=$('passageList');ul.innerHTML='';
+  ss.forEach((s,k)=>{
+    const li=document.createElement('li');if(k===S.idx)li.className='cur';
+    const last=[...S.attempts].reverse().find(a=>a.p===S.cur&&a.i===k);
+    li.innerHTML=esc(s)+(last?`<span class="badge ${last.pct>=90?'good':last.pct<70?'bad':''}">${last.pct}%</span>`:'');
+    li.onclick=()=>{S.idx=k;save();render();};ul.appendChild(li);
+  });
+}
+let chart=null;
+function drawChart(){
+  const a=S.attempts.slice(-40);const ctx=$('chart');
+  if(chart)chart.destroy();
+  chart=new Chart(ctx,{type:'line',data:{labels:a.map(x=>new Date(x.t).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'})),
+    datasets:[{data:a.map(x=>x.pct),borderColor:'#0C27F4',pointBackgroundColor:a.map(x=>x.i<0?'#ED6A2C':'#0C27F4'),tension:.2,pointRadius:3},
+              {data:a.map(()=>90),borderColor:'#27A6D2',borderDash:[4,4],pointRadius:0,borderWidth:1}]},
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+'%'}}},scales:{y:{min:0,max:100,ticks:{stepSize:25}},x:{ticks:{maxTicksLimit:8}}}}});
+  const freq={};S.attempts.slice(-30).forEach(x=>x.missed.forEach(w=>freq[w]=(freq[w]||0)+1));
+  const top=Object.entries(freq).sort((x,y)=>y[1]-x[1]).slice(0,12);
+  $('topMiss').innerHTML=top.length?'よく落ちる語（直近30回）: '+top.map(([w,c])=>`<span>${esc(w)} ${c}</span>`).join(''):'';
+}
+
+/* ---------- events ---------- */
+$('passageSel').onchange=e=>{S.cur=e.target.value;S.idx=0;stop();save();render();};
+$('btnNewPassage').onclick=()=>{const t=prompt('パッセージの英文を貼り付け');if(!t||!t.trim())return;const title=prompt('タイトル','Passage '+(S.passages.length+1))||'Passage';addPassage(title,t.trim());};
+$('btnPlay').onclick=()=>{if(speaking)stop();else{continuous=!loop;speak(S.idx);}};
+$('btnLoop').onclick=()=>{loop=!loop;continuous=!loop;render();if(loop)speak(S.idx);};
+$('btnPrev').onclick=()=>{const i=Math.max(0,S.idx-1);if(speaking)speak(i);else{S.idx=i;save();render();}};
+$('btnNext').onclick=()=>{const i=Math.min(sentences().length-1,S.idx+1);if(speaking)speak(i);else{S.idx=i;save();render();}};
+$('rate').oninput=e=>{S.rate=+e.target.value;$('rateOut').textContent=S.rate.toFixed(2)+'×';save();};
+$('modeSent').onclick=()=>{S.mode='sent';save();render();};
+$('modeAll').onclick=()=>{S.mode='all';save();render();};
+$('btnRec').onclick=()=>{recOn?stopRec():startRec();};
+$('btnManual').onclick=()=>{const t=$('manualText').value.trim();if(t)scoreAndShow(t);};
+$('btnAnalyze').onclick=analyze;
+$('apiKey').onchange=e=>{S.apiKey=e.target.value.trim();save();};
+$('model').onchange=e=>{S.model=e.target.value.trim();save();};
+$('voiceSel').onchange=e=>{S.voice=e.target.value;save();};
+$('btnExport').onclick=()=>{const b=new Blob([JSON.stringify(S,null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='shadowing-data.json';a.click();};
+$('btnReset').onclick=()=>{if(confirm('採点履歴を消しますか？パッセージと設定は残ります。')){S.attempts=[];save();drawChart();renderList();}};
+document.addEventListener('visibilitychange',()=>{if(document.hidden){stop();}});
+
+render();drawChart();
+</script>
+</body>
+</html>
