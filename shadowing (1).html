@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Shadowing</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#353A47; --ink-2:#6B707C; --ink-3:#A5A9B3;
+    --paper:#FFFFFF; --paper-2:#F4F3F4; --line:#E1E2E6;
+    --blue:#0C27F4; --orange:#ED6A2C; --teal:#27A6D2;
+    --miss:#D9451B; --miss-bg:#FDE9E1;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,"Hiragino Sans","Yu Gothic",sans-serif;font-size:15px;line-height:1.5}
+  body{padding:env(safe-area-inset-top) 0 calc(24px + env(safe-area-inset-bottom))}
+  main{max-width:640px;margin:0 auto;padding:0 16px}
+  h1{font-size:15px;font-weight:600;margin:14px 0 0;color:var(--ink-2)}
+  h2{font-size:13px;font-weight:600;color:var(--ink-2);margin:0 0 8px}
+  section{padding:18px 0;border-bottom:1px solid var(--line)}
+  section:last-of-type{border-bottom:0}
+  select,input,textarea{font:inherit;color:var(--ink);background:var(--paper);
+    border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%}
+  textarea{min-height:88px;resize:vertical}
+  button{font:inherit;border:1px solid var(--line);background:var(--paper);color:var(--ink);
+    border-radius:8px;padding:10px 12px;cursor:pointer}
+  button:disabled{opacity:.4}
+  button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  button.rec{background:var(--orange);border-color:var(--orange);color:#fff}
+  button.rec.on{background:var(--miss);border-color:var(--miss)}
+  button.ghost{border-color:transparent;color:var(--blue);padding:6px 4px}
+  button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+  .row{display:flex;gap:8px;align-items:center}
+  .row>*{flex:1}
+  .row.tight>*{flex:0 0 auto}
+  .muted{color:var(--ink-2);font-size:13px}
+  .small{font-size:12px;color:var(--ink-3)}
+
+  /* current sentence — the one thing that should be big */
+  .now{font-size:22px;line-height:1.4;font-weight:500;letter-spacing:-.01em;margin:8px 0 14px;min-height:62px}
+  .now .miss{color:var(--miss);background:var(--miss-bg);border-radius:3px;padding:0 2px}
+  .now .hit{color:var(--ink)}
+
+  .transport{display:grid;grid-template-columns:1fr 2fr 1fr 1.2fr;gap:6px}
+  .transport button{padding:12px 0;font-size:15px}
+  .transport .play{font-size:17px}
+  .rate{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .rate input[type=range]{flex:1;padding:0;border:0}
+  .rate output{width:44px;text-align:right;font-variant-numeric:tabular-nums}
+  .toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .toggle button{border:0;border-radius:0;padding:8px 12px;font-size:13px}
+  .toggle button.on{background:var(--ink);color:#fff}
+  #btnLoop.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  .passage{margin:6px 0 0;padding:0;list-style:none}
+  .passage li{padding:6px 8px;border-radius:6px;color:var(--ink-2);font-size:14px}
+  .passage li.cur{background:var(--paper-2);color:var(--ink)}
+  .passage li .badge{float:right;font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink-3)}
+  .passage li .badge.good{color:var(--teal)} .passage li .badge.bad{color:var(--miss)}
+
+  .score{display:flex;align-items:baseline;gap:8px;margin:6px 0 4px}
+  .score b{font-size:32px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .heard{font-size:14px;color:var(--ink-2);background:var(--paper-2);border-radius:6px;padding:8px 10px;margin-top:8px;min-height:38px}
+  .missed{margin-top:8px;font-size:14px}
+  .missed span{display:inline-block;background:var(--miss-bg);color:var(--miss);border-radius:4px;padding:1px 6px;margin:2px 4px 2px 0}
+
+  .analysis{margin-top:10px}
+  .analysis .wp{padding:8px 0;border-top:1px solid var(--line)}
+  .analysis .wp b{display:block}
+  .analysis .wp .tip{color:var(--ink-2);font-size:13px}
+  .analysis ol{padding-left:20px;margin:6px 0}
+  .analysis li{margin:4px 0}
+  .status{font-size:13px;color:var(--ink-2);min-height:18px;margin-top:6px}
+  .status.err{color:var(--miss)}
+
+  details summary{cursor:pointer;color:var(--ink-2);font-size:13px;list-style:none;padding:4px 0}
+  details summary::-webkit-details-marker{display:none}
+  details[open] summary{margin-bottom:8px}
+  .field{margin-bottom:10px}
+  .field label{display:block;font-size:12px;color:var(--ink-2);margin-bottom:3px}
+  canvas{max-height:180px}
+  .topmiss{font-size:13px;color:var(--ink-2);margin-top:8px}
+  .topmiss span{display:inline-block;margin:2px 8px 2px 0;font-variant-numeric:tabular-nums}
+  @media (prefers-reduced-motion:no-preference){ button{transition:background .12s} }
+</style>
+</head>
+<body>
+<main>
+  <div class="row" style="justify-content:space-between;align-items:baseline">
+    <h1>Shadowing</h1>
+    <button id="btnSettings" class="ghost" style="flex:0 0 auto">設定</button>
+  </div>
+  <section id="settings" hidden>
+    <div class="field"><label>お手本の声（英語）</label><select id="voiceSel"></select>
+      <p class="small" style="margin:4px 0 0">iPhoneは 設定 → アクセシビリティ → 読み上げコンテンツ → 声 → 英語 で「Ava」「Evan」等の拡張版をダウンロードすると自然になります。</p></div>
+    <div class="field"><label>文と文の間の息継ぎ</label>
+      <div class="rate" style="margin:0"><input type="range" id="gap" min="0" max="2.5" step="0.1" value="0.6"><output id="gapOut">0.6s</output></div>
+      <p class="small" style="margin:4px 0 0">長い文の後はわずかに延びます。0で音声本来の間だけになります。</p></div>
+    <div class="field"><label class="muted" style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="prosody" checked style="width:auto"> 抑揚をつける（節ごとに高さ・速さを変える）</label></div>
+    <div class="row"><button id="btnExport">データを書き出す</button><button id="btnReset">履歴を消す</button></div>
+  </section>
+
+  <!-- 1. passage select + current sentence + transport -->
+  <section>
+    <div class="row">
+      <select id="passageSel" aria-label="パッセージ"></select>
+      <button id="btnNewPassage" style="flex:0 0 auto">追加</button>
+    </div>
+    <div id="addBox" hidden style="margin-top:8px">
+      <input id="newTitle" placeholder="タイトル">
+      <textarea id="newText" placeholder="英文を貼り付け" style="margin-top:6px"></textarea>
+      <div class="row" style="margin-top:6px"><button id="btnAddSave" class="primary">登録</button><button id="btnAddCancel">やめる</button></div>
+    </div>
+    <div class="now" id="now">—</div>
+    <div class="transport">
+      <button id="btnPrev" title="前の文">‹</button>
+      <button id="btnPlay" class="play primary">全文再生</button>
+      <button id="btnNext" title="次の文">›</button>
+      <button id="btnLoop" title="この文を繰り返す">↻ 1文</button>
+    </div>
+    <p class="small" style="margin:6px 0 0">再生は今の文から最後まで通します。‹ › で文を移動、↻ で今の文だけ繰り返し。</p>
+    <div class="rate">
+      <span class="small">速度</span>
+      <input type="range" id="rate" min="0.6" max="1.3" step="0.05" value="0.9">
+      <output id="rateOut">0.90×</output>
+    </div>
+    <ul class="passage" id="passageList"></ul>
+  </section>
+
+  <!-- 2. record + score -->
+  <section>
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">吹き込む</h2>
+      <div class="toggle" style="flex:0 0 auto">
+        <button id="modeSent">1文</button>
+        <button id="modeAll" class="on">通し</button>
+      </div>
+    </div>
+    <p class="muted" style="margin:6px 0 10px">イヤホン装着のうえ、お手本を止めてから●。通しは全文、1文は今の文が採点対象。</p>
+    <div class="row">
+      <button id="btnRec" class="rec">● 吹き込み開始</button>
+    </div>
+    <div class="status" id="recStatus"></div>
+    <div class="score"><b id="scoreVal">–</b><span class="muted" id="scoreMeta"></span></div>
+    <div class="heard" id="heard">認識結果がここに出ます</div>
+    <div class="missed" id="missed"></div>
+    <details style="margin-top:10px">
+      <summary>音声認識が動かないとき（キーボードの音声入力で吹き込んだ文を貼る）</summary>
+      <textarea id="manualText" placeholder="iOSのキーボード音声入力（英語）で吹き込んだ結果を貼り付け"></textarea>
+      <div class="row" style="margin-top:6px"><button id="btnManual">この文で採点</button></div>
+    </details>
+  </section>
+
+  <!-- 3. analysis via Claude chat -->
+  <section>
+    <h2>弱点分析と次の例文（Claudeチャットで）</h2>
+    <p class="muted" style="margin:0 0 10px">①で採点結果をコピー → Claudeアプリに貼る → 返ってきた例文を②に貼ると、パッセージとして登録されます。</p>
+    <div class="row">
+      <button id="btnCopy" class="primary">① 分析依頼文をコピー</button>
+      <label class="muted" style="flex:0 0 auto;display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="wantPassage" style="width:auto"> 2分パッセージも
+      </label>
+    </div>
+    <textarea id="copyBox" hidden style="margin-top:8px;font-size:12px"></textarea>
+    <div class="status" id="anStatus"></div>
+    <textarea id="replyBox" placeholder="② Claudeの返答をそのまま貼り付け" style="margin-top:10px"></textarea>
+    <div class="row" style="margin-top:6px"><button id="btnImport">② 例文を取り込む</button></div>
+    <div class="status" id="imStatus"></div>
+  </section>
+
+  <!-- 4. history -->
+  <section>
+    <h2>一致率の推移</h2>
+    <canvas id="chart"></canvas>
+    <div class="topmiss" id="topMiss"></div>
+  </section>
+
+</main>
+
+<script>
+/* ---------- state ---------- */
+const KEY='shadow_app_v1';
+const PRESET=[
+ {id:'p1',title:'A trial that nearly didn\'t happen',text:`Let me tell you about a trial that nearly didn't happen. Three years ago, we were developing an oral formulation for a rare liver disease. The early data looked promising: bioavailability was roughly forty percent, variability was low, and the safety profile was clean. But the program was almost cancelled anyway. Not because the science was wrong, but because nobody believed we could enroll the patients. The disease is rare. Really rare. Individual hospitals rarely see more than five or six cases a year. So our first feasibility review concluded that a Phase 3 trial would take at least seven years. That isn't a trial. That's a career. What we learned is that the problem wasn't the drug. It was the infrastructure. So we did something we hadn't tried before. We built a collaboration with twelve referral centers across Europe, Brazil, and later Korea, and we let the sites share a single central review board. We also waited for the regulators to review the protocol before we finalized the vendor contracts, which felt slow at the time but saved us from three amendments later. The result? Enrollment finished in fourteen months, not seven years. The primary endpoint was met. The relative risk reduction was about fifty-five percent, and liver enzyme levels returned to normal in most patients. Now, I'm not telling you this because everything went well. It didn't. Our first vendor delivered the wrong labels, and we lost almost a full quarter. The interim analysis wasn't clean either. Several investigators hadn't reported their adverse events on time, and we had to verify every single record by hand. But here's the point. The breakthrough wasn't the molecule. The molecule had existed for years. The breakthrough was the collaboration: people who were willing to work differently, and to learn faster than the rules allowed. So when someone tells you a trial isn't feasible, ask them a different question. Not "is it feasible?" but "what would have to change?" Because in my experience, the barrier is rarely the technology. It's very often the way we work.`},
+ {id:'p2',title:'4 sentences — l/r, v/b, negatives',text:`The malaria vaccine lowered the viral load in the collaboration trial. Several researchers proved the first formulation was safe and effective. We waited for the interim results before the review meeting. The protocol isn't final, and the site hasn't enrolled any patients yet.`}
+];
+let S=load();
+function load(){
+  try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.passages){if(s.v!==2){s.gap=0.6;s.v=2;}return s;}}catch(e){}
+  return {passages:PRESET.map(p=>({...p})),cur:'p1',idx:0,attempts:[],rate:0.9,gap:0.6,v:2,prosody:true,voice:'',mode:'all'};
+}
+function save(){localStorage.setItem(KEY,JSON.stringify(S));}
+const $=id=>document.getElementById(id);
+
+/* ---------- sentences ---------- */
+function splitSentences(t){
+  return t.replace(/\s+/g,' ').trim().split(/(?<=[.!?]["']?)\s+(?=[A-Z"'(])/).filter(Boolean);
+}
+function passage(){return S.passages.find(p=>p.id===S.cur)||S.passages[0];}
+function sentences(){return splitSentences(passage().text);}
+
+/* ---------- normalization + scoring ---------- */
+const ONES=['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+const TENS=['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+function numWords(n){n=+n;if(isNaN(n)||n>999)return String(n);
+  if(n<20)return ONES[n];if(n<100)return TENS[Math.floor(n/10)]+(n%10?' '+ONES[n%10]:'');
+  return ONES[Math.floor(n/100)]+' hundred'+(n%100?' '+numWords(n%100):'');}
+function tokens(t){
+  return t.toLowerCase().replace(/[’‘]/g,"'").replace(/%/g,' percent ')
+    .replace(/(\d+)/g,(m)=>' '+numWords(m)+' ')
+    .replace(/[^a-z' ]+/g,' ').replace(/'+(?=\s|$)|(^|\s)'+/g,' ')
+    .split(/\s+/).filter(Boolean);
+}
+// LCS alignment → which original tokens were matched
+function align(orig,heard){
+  const n=orig.length,m=heard.length;const dp=Array.from({length:n+1},()=>new Array(m+1).fill(0));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)dp[i][j]=orig[i]===heard[j]?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+  const hit=new Array(n).fill(false);let i=0,j=0;
+  while(i<n&&j<m){if(orig[i]===heard[j]){hit[i]=true;i++;j++;}else if(dp[i+1][j]>=dp[i][j+1])i++;else j++;}
+  return hit;
+}
+function score(origText,heardText){
+  const o=tokens(origText),h=tokens(heardText);const hit=align(o,h);
+  const matched=hit.filter(Boolean).length;
+  return {pct:o.length?Math.round(100*matched/o.length):0,orig:o,hit,missed:o.filter((w,k)=>!hit[k])};
+}
+
+/* ---------- TTS ---------- */
+let voices=[],speaking=false,continuous=false,loop=false,timer=null,session=0;
+function loadVoices(){
+  voices=speechSynthesis.getVoices().filter(v=>/^en[-_]/i.test(v.lang));
+  const sel=$('voiceSel');sel.innerHTML='';
+  const pref=/samantha|ava|evan|alex|zoe|aaron|nicky|premium|enhanced/i;
+  voices.sort((a,b)=>(pref.test(b.name)-pref.test(a.name))||a.name.localeCompare(b.name));
+  voices.forEach(v=>{const o=document.createElement('option');o.value=v.name;o.textContent=`${v.name} (${v.lang})`;sel.appendChild(o);});
+  if(S.voice&&voices.some(v=>v.name===S.voice))sel.value=S.voice;else if(voices[0]){S.voice=voices[0].name;}
+}
+speechSynthesis.onvoiceschanged=loadVoices;loadVoices();
+
+// split a sentence into clauses; keep trailing punctuation to decide pause length
+function clauses(s){
+  const parts=s.match(/[^,;:—–]+[,;:—–]?/g)||[s];
+  return parts.map(x=>x.trim()).filter(Boolean);
+}
+function wordCount(s){return (s.match(/[A-Za-z0-9']+/g)||[]).length;}
+// prosody plan for one sentence → [{text,pitch,rate,pauseAfter}]
+function plan(sentence,si){
+  const cs=clauses(sentence);const n=cs.length;const isQ=/\?["']?$/.test(sentence);
+  const short=wordCount(sentence)<=4;
+  const drift=((si%3)-1)*0.03;               // sentence-level variation so consecutive sentences don't sound identical
+  return cs.map((c,k)=>{
+    let pitch=1,rate=S.rate,pause=0;
+    if(S.prosody){
+      const last=k===n-1;
+      if(short){pitch=0.9;rate=S.rate*0.85;}
+      else if(last){pitch=isQ?1.14:0.94;rate=S.rate*0.92;}
+      else if(k===0){pitch=1.08;}
+      else{pitch=1.0+(k%2?0.03:-0.02);}
+      pitch+=drift;
+      if(/[:;—–]$/.test(c))pause=380;else if(/,$/.test(c))pause=200;
+    }
+    return {text:c,pitch:Math.max(0.6,Math.min(1.6,pitch)),rate,pauseAfter:pause};
+  });
+}
+function breath(sentence){return S.gap*1000+wordCount(sentence)*15;}
+
+function speak(i){
+  const ss=sentences();if(i<0||i>=ss.length){stop();return;}
+  S.idx=i;save();render();
+  const my=++session;clearTimeout(timer);speechSynthesis.cancel();
+  speaking=true;$('btnPlay').textContent='停止';$('btnLoop').classList.toggle('on',loop);
+  const chunks=plan(ss[i],i);const v=voices.find(v=>v.name===S.voice);
+  const next=(k)=>{
+    if(my!==session||!speaking)return;
+    if(k>=chunks.length){
+      timer=setTimeout(()=>{if(my!==session||!speaking)return;if(loop)speak(i);else if(continuous)speak(i+1);else stop();},breath(ss[i]));
+      return;
+    }
+    const c=chunks[k];const u=new SpeechSynthesisUtterance(c.text);
+    if(v)u.voice=v;u.lang='en-US';u.rate=c.rate;u.pitch=c.pitch;
+    u.onend=()=>{if(c.pauseAfter)timer=setTimeout(()=>next(k+1),c.pauseAfter);else next(k+1);};
+    u.onerror=(e)=>{if(e.error!=='interrupted'&&e.error!=='canceled')stop();};
+    speechSynthesis.speak(u);
+  };
+  next(0);
+}
+function stop(){speaking=false;session++;clearTimeout(timer);speechSynthesis.cancel();$('btnPlay').textContent=loop?'この文を再生':'全文再生';}
+
+/* ---------- recognition ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null,recOn=false,finalText='',lastResult=null;
+function startRec(){
+  if(!SR){setRec('この端末では音声認識が使えません。下の手動貼り付けで採点してください。',true);return;}
+  stop();finalText='';lastResult=null;$('heard').textContent='…';
+  rec=new SR();rec.lang='en-US';rec.interimResults=true;rec.continuous=(S.mode==='all');rec.maxAlternatives=1;
+  rec.onresult=e=>{let interim='';for(let k=e.resultIndex;k<e.results.length;k++){const r=e.results[k];if(r.isFinal)finalText+=r[0].transcript+' ';else interim+=r[0].transcript;}
+    $('heard').textContent=(finalText+interim).trim()||'…';};
+  rec.onerror=e=>{setRec('音声認識エラー: '+e.error+(e.error==='not-allowed'?'（マイクを許可してください）':''),true);endRec(false);};
+  rec.onend=()=>{ if(recOn&&S.mode==='all'){try{rec.start();return;}catch(e){}} endRec(true);};
+  try{rec.start();recOn=true;$('btnRec').textContent='■ 停止して採点';$('btnRec').classList.add('on');setRec(S.mode==='sent'?'今の文を話してください。話し終わると自動で止まります。':'通しで話してください。終わったら■。');}
+  catch(e){setRec('開始できません: '+e.message,true);}
+}
+function endRec(doScore){
+  recOn=false;$('btnRec').textContent='● 吹き込み開始';$('btnRec').classList.remove('on');
+  if(doScore&&finalText.trim())scoreAndShow(finalText.trim());else if(doScore)setRec('何も認識されませんでした。もう一度どうぞ。',true);
+}
+function stopRec(){recOn=false;try{rec&&rec.stop();}catch(e){}}
+function setRec(msg,err){const s=$('recStatus');s.textContent=msg;s.className='status'+(err?' err':'');}
+
+function scoreAndShow(heardText){
+  const ss=sentences();const target=S.mode==='sent'?ss[S.idx]:passage().text;
+  const r=score(target,heardText);lastResult={target,heard:heardText,...r};
+  $('scoreVal').textContent=r.pct+'%';
+  $('scoreMeta').textContent=`${r.orig.length-r.missed.length}/${r.orig.length}語 ・ ${S.mode==='sent'?'1文':'通し'}`;
+  $('heard').textContent=heardText;
+  $('missed').innerHTML=r.missed.length?'落ちた語: '+[...new Set(r.missed)].map(w=>`<span>${esc(w)}</span>`).join(''):'全語一致';
+  // highlight current sentence
+  if(S.mode==='sent')$('now').innerHTML=r.orig.map((w,k)=>`<span class="${r.hit[k]?'hit':'miss'}">${esc(w)}</span>`).join(' ');
+  S.attempts.push({t:Date.now(),p:S.cur,i:S.mode==='sent'?S.idx:-1,pct:r.pct,missed:[...new Set(r.missed)],heard:heardText});
+  if(S.attempts.length>400)S.attempts=S.attempts.slice(-400);
+  save();setRec('採点しました');renderList();drawChart();
+}
+
+/* ---------- analysis via Claude chat (no API key) ---------- */
+function buildRequest(){
+  const recent=S.attempts.slice(-10);
+  if(!lastResult&&!recent.length)return null;
+  const hist={};recent.forEach(a=>a.missed.forEach(w=>hist[w]=(hist[w]||0)+1));
+  const histTxt=Object.entries(hist).sort((a,b)=>b[1]-a[1]).map(([w,c])=>c>1?`${w}(${c})`:w).join(', ')||'(なし)';
+  const wantP=$('wantPassage').checked;
+  return `シャドーイングの採点結果です。発音の弱点を分析して、次の練習用例文を作ってください。
+
+【原文】
+${lastResult?lastResult.target:'(今回なし)'}
+
+【音声認識の結果】
+${lastResult?lastResult.heard:'(今回なし)'}
+
+【今回落ちた語】${lastResult?lastResult.missed.join(', ')||'なし':'-'}
+【直近10回でよく落ちた語】${histTxt}
+
+出力形式（アプリに取り込むので、この形式を厳守）：
+1. 弱点TOP3（音の種類／根拠の語／発音のコツ1文）
+2. 対策例文3つ。各行を「S: 」で始める。製薬・臨床開発の会議で使う文、12〜20語、弱点の音を高密度で含め、否定の縮約（isn't / hasn't 等）を最低1つ入れる
+${wantP?'3. 2分パッセージ。「P-TITLE: 」の行に英語タイトル、「P: 」の行に本文（280〜330語、臨床開発リードが会議で語る一人称の話、弱点の音と否定縮約を高密度に）':''}`;
+}
+$('btnCopy').onclick=async()=>{
+  const t=buildRequest();if(!t){setAn('先に1回吹き込んでください',true);return;}
+  const box=$('copyBox');box.value=t;
+  try{await navigator.clipboard.writeText(t);setAn('コピーしました。Claudeアプリに貼ってください。');box.hidden=true;}
+  catch(e){box.hidden=false;box.select();setAn('下の文を長押しで全選択してコピーしてください。',true);}
+};
+function setAn(msg,err){const s=$('anStatus');s.textContent=msg;s.className='status'+(err?' err':'');}
+$('btnImport').onclick=()=>{
+  const t=$('replyBox').value;const lines=t.split(/\r?\n/).map(l=>l.trim());
+  const sents=lines.filter(l=>/^S:\s*/.test(l)).map(l=>l.replace(/^S:\s*/,''));
+  const pt=lines.find(l=>/^P-TITLE:\s*/.test(l));const pb=lines.find(l=>/^P:\s*/.test(l));
+  let n=0;
+  if(sents.length){addPassage('対策例文 '+new Date().toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'}),sents.join(' '),false);n++;}
+  if(pb){addPassage(pt?pt.replace(/^P-TITLE:\s*/,''):'Passage '+new Date().toLocaleDateString('ja-JP'),pb.replace(/^P:\s*/,''),false);n++;}
+  const s=$('imStatus');
+  if(n){$('replyBox').value='';s.textContent=`${n}件を登録しました（例文${sents.length}文${pb?'＋パッセージ':''}）。上のパッセージ選択から開けます。`;s.className='status';render();}
+  else{s.textContent='「S: 」で始まる行が見つかりません。Claudeの返答をそのまま貼ってください。';s.className='status err';}
+};
+function addPassage(title,text,jump=true){
+  const id='p'+Date.now()+Math.random().toString(36).slice(2,5);S.passages.push({id,title,text});
+  if(jump){S.cur=id;S.idx=0;}save();render();if(jump)window.scrollTo({top:0});
+}
+
+/* ---------- render ---------- */
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function render(){
+  const sel=$('passageSel');sel.innerHTML='';S.passages.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.title;sel.appendChild(o);});
+  sel.value=passage().id;
+  const ss=sentences();if(S.idx>=ss.length)S.idx=0;
+  $('now').textContent=ss[S.idx]||'—';
+  $('rate').value=S.rate;$('rateOut').textContent=S.rate.toFixed(2)+'×';
+  $('modeSent').classList.toggle('on',S.mode==='sent');$('modeAll').classList.toggle('on',S.mode==='all');
+  $('btnLoop').classList.toggle('on',loop);if(!speaking)$('btnPlay').textContent=loop?'この文を再生':'全文再生';
+  $('gap').value=S.gap;$('gapOut').textContent=S.gap.toFixed(2).replace(/\.?0+$/,'')+'s';$('prosody').checked=S.prosody;
+  renderList();
+}
+function renderList(){
+  const ss=sentences();const ul=$('passageList');ul.innerHTML='';
+  ss.forEach((s,k)=>{
+    const li=document.createElement('li');if(k===S.idx)li.className='cur';
+    const last=[...S.attempts].reverse().find(a=>a.p===S.cur&&a.i===k);
+    li.innerHTML=esc(s)+(last?`<span class="badge ${last.pct>=90?'good':last.pct<70?'bad':''}">${last.pct}%</span>`:'');
+    li.onclick=()=>{S.idx=k;save();render();};ul.appendChild(li);
+  });
+}
+let chart=null;
+function drawChart(){
+  const a=S.attempts.slice(-40);const ctx=$('chart');
+  if(chart)chart.destroy();
+  chart=new Chart(ctx,{type:'line',data:{labels:a.map(x=>new Date(x.t).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'})),
+    datasets:[{data:a.map(x=>x.pct),borderColor:'#0C27F4',pointBackgroundColor:a.map(x=>x.i<0?'#ED6A2C':'#0C27F4'),tension:.2,pointRadius:3},
+              {data:a.map(()=>90),borderColor:'#27A6D2',borderDash:[4,4],pointRadius:0,borderWidth:1}]},
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+'%'}}},scales:{y:{min:0,max:100,ticks:{stepSize:25}},x:{ticks:{maxTicksLimit:8}}}}});
+  const freq={};S.attempts.slice(-30).forEach(x=>x.missed.forEach(w=>freq[w]=(freq[w]||0)+1));
+  const top=Object.entries(freq).sort((x,y)=>y[1]-x[1]).slice(0,12);
+  $('topMiss').innerHTML=top.length?'よく落ちる語（直近30回）: '+top.map(([w,c])=>`<span>${esc(w)} ${c}</span>`).join(''):'';
+}
+
+/* ---------- events ---------- */
+$('passageSel').onchange=e=>{S.cur=e.target.value;S.idx=0;stop();save();render();};
+$('btnNewPassage').onclick=()=>{$('addBox').hidden=!$('addBox').hidden;};
+$('btnAddCancel').onclick=()=>{$('addBox').hidden=true;};
+$('btnAddSave').onclick=()=>{const t=$('newText').value.trim();if(!t)return;addPassage($('newTitle').value.trim()||'Passage '+(S.passages.length+1),t);$('newText').value='';$('newTitle').value='';$('addBox').hidden=true;};
+$('btnSettings').onclick=()=>{$('settings').hidden=!$('settings').hidden;};
+$('gap').oninput=e=>{S.gap=+e.target.value;$('gapOut').textContent=S.gap.toFixed(2).replace(/\.?0+$/,'')+'s';save();};
+$('prosody').onchange=e=>{S.prosody=e.target.checked;save();};
+$('btnPlay').onclick=()=>{if(speaking)stop();else{continuous=!loop;speak(S.idx);}};
+$('btnLoop').onclick=()=>{loop=!loop;continuous=!loop;render();if(loop)speak(S.idx);};
+$('btnPrev').onclick=()=>{const i=Math.max(0,S.idx-1);if(speaking)speak(i);else{S.idx=i;save();render();}};
+$('btnNext').onclick=()=>{const i=Math.min(sentences().length-1,S.idx+1);if(speaking)speak(i);else{S.idx=i;save();render();}};
+$('rate').oninput=e=>{S.rate=+e.target.value;$('rateOut').textContent=S.rate.toFixed(2)+'×';save();};
+$('modeSent').onclick=()=>{S.mode='sent';save();render();};
+$('modeAll').onclick=()=>{S.mode='all';save();render();};
+$('btnRec').onclick=()=>{recOn?stopRec():startRec();};
+$('btnManual').onclick=()=>{const t=$('manualText').value.trim();if(t)scoreAndShow(t);};
+$('voiceSel').onchange=e=>{S.voice=e.target.value;save();};
+$('btnExport').onclick=()=>{const b=new Blob([JSON.stringify(S,null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='shadowing-data.json';a.click();};
+$('btnReset').onclick=()=>{if(confirm('採点履歴を消しますか？パッセージと設定は残ります。')){S.attempts=[];save();drawChart();renderList();}};
+document.addEventListener('visibilitychange',()=>{if(document.hidden){stop();}});
+
+render();drawChart();
+</script>
+</body>
+</html>
